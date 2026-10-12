@@ -168,4 +168,4 @@ A audiência orgânica tem ciclo diário, ruído proporcional ao volume e contag
 
 O Claude Code (Claude Opus 5.5) escreveu o código, os testes, o dataset e este README. Ele também escolheu os sinais, os limiares e os cenários do dataset.
 
-Eu escolhi TypeScript e pedi a entrega. Ainda não revisei o código.
+Eu escolhi TypeScript e pedi a entrega. Li `src/classifier.ts`, onde estão os sinais e a decisão. Não revisei o resto do código nem os testes.
