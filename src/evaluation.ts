@@ -1,5 +1,5 @@
-import { classify } from './classifier.ts';
-import type { Classification } from './classifier.ts';
+import { DEFAULT_THRESHOLDS, classify } from './classifier.ts';
+import type { Classification, Thresholds } from './classifier.ts';
 import { COMPARISON_SEEDS, REPORT_SEED, TUNING_SEED, generateDataset } from './dataset.ts';
 import type { Label, LabeledSeries } from './dataset.ts';
 
@@ -37,7 +37,10 @@ const percent = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 2,
 });
 
-export function measure(dataset: LabeledSeries[]): Measurement {
+export function measure(
+  dataset: LabeledSeries[],
+  thresholds: Thresholds = DEFAULT_THRESHOLDS,
+): Measurement {
   const byScenario = new Map<string, ScenarioResult>();
   for (const series of dataset) {
     const result = byScenario.get(series.scenario) ?? {
@@ -49,7 +52,7 @@ export function measure(dataset: LabeledSeries[]): Measurement {
       suspicious: 0,
     };
     result.total++;
-    result[classify(series.views).classification]++;
+    result[classify(series.views, thresholds).classification]++;
     byScenario.set(series.scenario, result);
   }
 
@@ -167,6 +170,93 @@ export function renderEvaluation(evaluation: Evaluation): string {
       `${withAnySignal(report, 'suspicious')} de ${report.suspiciousTotal} |`,
     `| Números iguais demais ou pico em caixa (regra usada) | ${report.falsePositives} de ` +
       `${report.legitimateTotal} | ${report.detected} de ${report.suspiciousTotal} |`,
+    '',
+  ].join('\n');
+}
+
+export interface ThresholdCost {
+  threshold: keyof Thresholds;
+  value: number;
+  used: boolean;
+  falsePositives: number;
+  legitimateTotal: number;
+  falseNegatives: number;
+  suspiciousTotal: number;
+}
+
+const wholePercent = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 0 });
+
+export const THRESHOLD_SWEEP: {
+  name: keyof Thresholds;
+  label: string;
+  values: number[];
+  format: (value: number) => string;
+}[] = [
+  {
+    name: 'flatWindowHours',
+    label: 'Horas seguidas de `flat_run`',
+    values: [6, 8, 12],
+    format: (value) => `${value} horas`,
+  },
+  {
+    name: 'flatMaxDispersion',
+    label: 'Variância máxima de `flat_run`',
+    values: [0.02, 0.05, 0.1, 0.2],
+    format: (value) => `${wholePercent.format(value)} da média`,
+  },
+  {
+    name: 'jumpFactor',
+    label: 'Fator de subida e de queda',
+    values: [2, 3, 4, 5],
+    format: (value) => `${value}x`,
+  },
+  {
+    name: 'boxMinRetention',
+    label: 'Patamar mínimo antes da queda',
+    values: [0.25, 0.5, 0.75],
+    format: (value) => `${wholePercent.format(value)} da subida`,
+  },
+];
+
+export function thresholdCosts(dataset: LabeledSeries[]): ThresholdCost[] {
+  return THRESHOLD_SWEEP.flatMap(({ name, values }) =>
+    values.map((value) => {
+      const measurement = measure(dataset, { ...DEFAULT_THRESHOLDS, [name]: value });
+      return {
+        threshold: name,
+        value,
+        used: value === DEFAULT_THRESHOLDS[name],
+        falsePositives: measurement.falsePositives,
+        legitimateTotal: measurement.legitimateTotal,
+        falseNegatives: measurement.suspiciousTotal - measurement.detected,
+        suspiciousTotal: measurement.suspiciousTotal,
+      };
+    }),
+  );
+}
+
+export function renderThresholdCosts(seed: number, costs: ThresholdCost[]): string {
+  const rows = costs.map((cost) => {
+    const sweep = THRESHOLD_SWEEP.find(({ name }) => name === cost.threshold);
+    const value = sweep ? sweep.format(cost.value) : String(cost.value);
+    return (
+      `| ${sweep?.label ?? cost.threshold} | ${cost.used ? `**${value} (usado)**` : value} | ` +
+      `${cost.falsePositives} de ${cost.legitimateTotal} ` +
+      `(${rate(cost.falsePositives, cost.legitimateTotal)}) | ` +
+      `${cost.falseNegatives} de ${cost.suspiciousTotal} ` +
+      `(${rate(cost.falseNegatives, cost.suspiciousTotal)}) |`
+    );
+  });
+  return [
+    '### Custo por limiar',
+    '',
+    `Medido na seed ${seed}, a de ajuste. Cada linha muda um limiar e mantém os outros no valor ` +
+      `usado. Falso positivo é série legítima classificada como \`suspicious\`. Falso negativo é ` +
+      `série suspeita que não foi classificada como \`suspicious\`.`,
+    '',
+    '| Limiar | Valor | Falsos positivos | Falsos negativos |',
+    '| --- | --- | ---: | ---: |',
+    ...rows,
     '',
   ].join('\n');
 }

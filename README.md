@@ -121,6 +121,27 @@ Esta seção é escrita por `npm run dataset`. Não edite à mão.
 | Qualquer sinal acusa | 111 de 600 | 340 de 400 |
 | Números iguais demais ou pico em caixa (regra usada) | 14 de 600 | 340 de 400 |
 
+### Custo por limiar
+
+Medido na seed 20261011, a de ajuste. Cada linha muda um limiar e mantém os outros no valor usado. Falso positivo é série legítima classificada como `suspicious`. Falso negativo é série suspeita que não foi classificada como `suspicious`.
+
+| Limiar | Valor | Falsos positivos | Falsos negativos |
+| --- | --- | ---: | ---: |
+| Horas seguidas de `flat_run` | 6 horas | 10 de 600 (1,67%) | 60 de 400 (15,00%) |
+| Horas seguidas de `flat_run` | **8 horas (usado)** | 9 de 600 (1,50%) | 60 de 400 (15,00%) |
+| Horas seguidas de `flat_run` | 12 horas | 9 de 600 (1,50%) | 60 de 400 (15,00%) |
+| Variância máxima de `flat_run` | 2% da média | 9 de 600 (1,50%) | 62 de 400 (15,50%) |
+| Variância máxima de `flat_run` | **5% da média (usado)** | 9 de 600 (1,50%) | 60 de 400 (15,00%) |
+| Variância máxima de `flat_run` | 10% da média | 9 de 600 (1,50%) | 60 de 400 (15,00%) |
+| Variância máxima de `flat_run` | 20% da média | 13 de 600 (2,17%) | 60 de 400 (15,00%) |
+| Fator de subida e de queda | 2x | 20 de 600 (3,33%) | 58 de 400 (14,50%) |
+| Fator de subida e de queda | **3x (usado)** | 9 de 600 (1,50%) | 60 de 400 (15,00%) |
+| Fator de subida e de queda | 4x | 3 de 600 (0,50%) | 60 de 400 (15,00%) |
+| Fator de subida e de queda | 5x | 1 de 600 (0,17%) | 64 de 400 (16,00%) |
+| Patamar mínimo antes da queda | 25% da subida | 9 de 600 (1,50%) | 60 de 400 (15,00%) |
+| Patamar mínimo antes da queda | **50% da subida (usado)** | 9 de 600 (1,50%) | 60 de 400 (15,00%) |
+| Patamar mínimo antes da queda | 75% da subida | 9 de 600 (1,50%) | 60 de 400 (15,00%) |
+
 ## Como ler a taxa
 
 Os testes em [test/dataset.test.ts](test/dataset.test.ts) medem o dataset commitado e comparam com a seção acima. Se um número do README divergir do medido, o teste falha.
