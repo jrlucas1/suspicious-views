@@ -88,48 +88,62 @@ O mesmo vale para uma queda brusca sozinha (vídeo removido, falha de coleta). O
 
 Esta seção é escrita por `npm run dataset`. Não edite à mão.
 
-- Taxa de falso positivo: **1,50%** (9 de 600 séries legítimas classificadas como `suspicious`).
-- Séries legítimas sem acusação e sem absolvição (`inconclusive`): 18,00% (108 de 600).
+- Taxa de falso positivo: **2,33%** (14 de 600 séries legítimas classificadas como `suspicious`).
+- Intervalo de 95% da taxa (Wilson): 1,39% a 3,88%.
+- Séries legítimas sem acusação e sem absolvição (`inconclusive`): 16,17% (97 de 600).
 - Séries suspeitas detectadas: 85,00% (340 de 400).
 
 | Rótulo | Cenário | Séries | `legitimate` | `inconclusive` | `suspicious` |
 | --- | --- | ---: | ---: | ---: | ---: |
 | legitimate | `steady` | 210 | 210 | 0 | 0 |
-| legitimate | `organic_viral` | 180 | 166 | 14 | 0 |
-| legitimate | `new_video` | 90 | 89 | 1 | 0 |
-| legitimate | `sudden_share` | 48 | 4 | 44 | 0 |
-| legitimate | `collection_gap` | 36 | 10 | 26 | 0 |
-| legitimate | `scheduled_event` | 36 | 4 | 23 | 9 |
+| legitimate | `organic_viral` | 180 | 175 | 5 | 0 |
+| legitimate | `new_video` | 90 | 90 | 0 | 0 |
+| legitimate | `sudden_share` | 48 | 3 | 45 | 0 |
+| legitimate | `collection_gap` | 36 | 9 | 27 | 0 |
+| legitimate | `scheduled_event` | 36 | 2 | 20 | 14 |
 | suspicious | `bought_plateau` | 140 | 0 | 0 | 140 |
 | suspicious | `bought_jittered` | 80 | 0 | 0 | 80 |
 | suspicious | `mechanical_flat` | 80 | 0 | 0 | 80 |
 | suspicious | `daily_blocks` | 40 | 0 | 0 | 40 |
-| suspicious | `drip_feed` | 36 | 35 | 1 | 0 |
+| suspicious | `drip_feed` | 36 | 36 | 0 | 0 |
 | suspicious | `small_boost` | 24 | 24 | 0 | 0 |
+
+### Seeds
+
+- Os números acima são da seed 314159, gerada depois que os limiares estavam fixos.
+- Na seed 20261011, usada para ajustar os limiares: falso positivo de 1,50% (9 de 600) e detecção de 85,00% (340 de 400).
+- Nas 20 seeds de 101 a 120: falso positivo de 0,67% a 2,33% e detecção de 84,75% a 85,25%.
+
+### Custo de acusar por qualquer sinal
+
+| Regra | Legítimas acusadas | Suspeitas detectadas |
+| --- | ---: | ---: |
+| Qualquer sinal acusa | 111 de 600 | 340 de 400 |
+| Números iguais demais ou pico em caixa (regra usada) | 14 de 600 | 340 de 400 |
 
 ## Como ler a taxa
 
-O teste em [test/dataset.test.ts](test/dataset.test.ts) mede o dataset commitado e compara com a seção acima. Se o número do README divergir do medido, o teste falha.
+Os testes em [test/dataset.test.ts](test/dataset.test.ts) medem o dataset commitado e comparam com a seção acima. Se um número do README divergir do medido, o teste falha.
 
-A taxa é uma propriedade deste dataset. Ela não estima o erro em tráfego real.
+A taxa é uma propriedade deste dataset. Ela não estima o erro em tráfego real. O intervalo de 95% mostra a precisão que 600 séries legítimas permitem.
 
-Todos os falsos positivos vêm de um cenário: `scheduled_event`. É um evento legítimo com hora marcada (uma live, um programa de TV) que multiplica as views por algumas horas e acaba de uma vez. Na série de views ele tem a mesma forma de um pacote comprado. O cenário é 6% das séries legítimas, e esse 6% fui eu que escolhi. Com mais eventos assim no gerador, a taxa sobe na mesma proporção.
+A taxa publicada vem de uma seed que os limiares não viram. Eu ajustei o limiar de `flat_run` olhando a seed de ajuste e as seeds de 1 a 20. O primeiro limiar (6 horas, 10% da média) acusava por acaso 7 séries honestas em 600 na seed de ajuste. Com 8 horas e 5%, nenhuma nessas 21 seeds. Essa comparação entre os dois limiares foi feita por um script fora do repositório. A seed publicada e as seeds de comparação foram escolhidas depois, e os limiares não mudaram desde então.
 
-Com 20 outras seeds, os falsos positivos ficaram entre 3 e 12 em 600 (0,5% a 2,0%), todos em `scheduled_event`. Essa conferência foi feita por um script fora do repositório.
+Na tabela acima, todos os falsos positivos estão em um cenário: `scheduled_event`. Um teste confere isso. É um evento legítimo com hora marcada (uma live, um programa de TV) que multiplica as views por algumas horas e acaba de uma vez. Na série de views ele tem a mesma forma de um pacote comprado. O cenário é 6% das séries legítimas, e esse 6% fui eu que escolhi. Com mais eventos assim no gerador, a taxa sobe na mesma proporção.
 
-O primeiro limiar de `flat_run` (6 horas, 10% da média) acusava por acaso 7 séries honestas em 600. Com 8 horas e 5%, nenhuma em 12.000 séries legítimas (20 seeds), e a detecção de `mechanical_flat` continuou em 100%.
+A tabela "Custo de acusar por qualquer sinal" compara a regra usada com a regra mais simples, em que uma subida ou uma queda brusca sozinha já acusa. As linhas `drip_feed` e `small_boost` mostram por quê a detecção não muda: essas séries não disparam sinal nenhum.
 
 ## O que ele não detecta
 
-- Views compradas entregues aos poucos, com subida e descida suaves (`drip_feed`). Nenhuma das 36 foi detectada.
-- Pico comprado menor que 3x a audiência normal (`small_boost`). Nenhum dos 24 foi detectado.
+- Views compradas entregues aos poucos, com subida e descida suaves (linha `drip_feed` da tabela).
+- Pico comprado menor que 3x a audiência normal (linha `small_boost` da tabela).
 - Pico comprado de uma hora só. A mudança precisa durar duas horas.
 - Bots com variação parecida com a de gente e sem borda brusca.
 - Vídeo com menos de 50 views por hora. O volume é baixo demais para separar entrega automática de acaso.
 - Subida ou queda nas duas primeiras horas e na última hora da série. Faltam horas vizinhas para comparar.
 - De onde vêm as views. A série não tem origem, retenção, curtidas nem comentários.
 
-Ele também erra para o outro lado: evento legítimo com fim brusco é acusado (9 de 36 no dataset).
+Ele também erra para o outro lado: evento legítimo com fim brusco é acusado (linha `scheduled_event` da tabela).
 
 ## Dataset
 
@@ -168,4 +182,6 @@ A audiência orgânica tem ciclo diário, ruído proporcional ao volume e contag
 
 O Claude Code (Claude Opus 5.5) escreveu o código, os testes, o dataset e este README. Ele também escolheu os sinais, os limiares e os cenários do dataset.
 
-Eu escolhi TypeScript e pedi a entrega. Depois li o código em `src/`, os testes e este README.
+Eu escolhi TypeScript e pedi a entrega. Depois li o código em `src/`, os testes e este README, na primeira versão.
+
+Depois pedi quatro mudanças na medição: publicar a taxa de uma seed que os limiares não viram, trazer a faixa entre seeds para o comando, mostrar o intervalo de 95% e comparar a regra com "qualquer sinal acusa". Reli o código dessas mudanças em `src/evaluation.ts` e os testes novos.
