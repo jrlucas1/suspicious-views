@@ -1,4 +1,6 @@
-export const SEED = 20261011;
+export const REPORT_SEED = 314159;
+export const TUNING_SEED = 20261011;
+export const COMPARISON_SEEDS = Array.from({ length: 20 }, (_, index) => 101 + index);
 export const HOURS = 168;
 
 export type Label = 'legitimate' | 'suspicious';
@@ -214,7 +216,7 @@ export const SCENARIOS: Scenario[] = [
   { label: 'suspicious', name: 'small_boost', count: 24, build: smallBoost },
 ];
 
-export function generateDataset(seed: number = SEED): LabeledSeries[] {
+export function generateDataset(seed: number = REPORT_SEED): LabeledSeries[] {
   const random = createRandom(seed);
   return SCENARIOS.flatMap((scenario) =>
     Array.from({ length: scenario.count }, (_, index) => ({
