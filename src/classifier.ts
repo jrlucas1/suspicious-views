@@ -8,6 +8,24 @@ export const JUMP_FACTOR = 3;
 export const JUMP_MIN_VIEWS = 100;
 export const BOX_MIN_RETENTION = 0.5;
 
+export interface Thresholds {
+  flatWindowHours: number;
+  flatMinMean: number;
+  flatMaxDispersion: number;
+  jumpFactor: number;
+  jumpMinViews: number;
+  boxMinRetention: number;
+}
+
+export const DEFAULT_THRESHOLDS: Thresholds = {
+  flatWindowHours: FLAT_WINDOW_HOURS,
+  flatMinMean: FLAT_MIN_MEAN,
+  flatMaxDispersion: FLAT_MAX_DISPERSION,
+  jumpFactor: JUMP_FACTOR,
+  jumpMinViews: JUMP_MIN_VIEWS,
+  boxMinRetention: BOX_MIN_RETENTION,
+};
+
 export interface FlatRun {
   startHour: number;
   endHour: number;
@@ -56,18 +74,21 @@ function sampleVariance(values: number[]): number {
   return squares / (values.length - 1);
 }
 
-function isFlat(window: number[]): boolean {
+function isFlat(window: number[], thresholds: Thresholds): boolean {
   const average = mean(window);
-  return average >= FLAT_MIN_MEAN && sampleVariance(window) <= FLAT_MAX_DISPERSION * average;
+  return (
+    average >= thresholds.flatMinMean &&
+    sampleVariance(window) <= thresholds.flatMaxDispersion * average
+  );
 }
 
-function findFlatRun(views: number[]): FlatRun | null {
+function findFlatRun(views: number[], thresholds: Thresholds): FlatRun | null {
   let longest: { start: number; end: number } | null = null;
   let current: { start: number; end: number } | null = null;
 
-  for (let start = 0; start + FLAT_WINDOW_HOURS <= views.length; start++) {
-    const end = start + FLAT_WINDOW_HOURS - 1;
-    if (!isFlat(views.slice(start, end + 1))) {
+  for (let start = 0; start + thresholds.flatWindowHours <= views.length; start++) {
+    const end = start + thresholds.flatWindowHours - 1;
+    if (!isFlat(views.slice(start, end + 1), thresholds)) {
       current = null;
       continue;
     }
@@ -88,34 +109,34 @@ function findFlatRun(views: number[]): FlatRun | null {
   };
 }
 
-function findRises(views: number[]): Jump[] {
+function findRises(views: number[], thresholds: Thresholds): Jump[] {
   const rises: Jump[] = [];
   for (let hour = 2; hour + 1 < views.length; hour++) {
     const before = Math.max(...views.slice(hour - 2, hour));
     const after = Math.min(...views.slice(hour, hour + 2));
-    if (after >= JUMP_FACTOR * before && after - before >= JUMP_MIN_VIEWS) {
+    if (after >= thresholds.jumpFactor * before && after - before >= thresholds.jumpMinViews) {
       rises.push({ hour, before, after, factor: after / Math.max(before, 1) });
     }
   }
   return rises;
 }
 
-function findDrops(views: number[]): Jump[] {
+function findDrops(views: number[], thresholds: Thresholds): Jump[] {
   const drops: Jump[] = [];
   for (let hour = 2; hour + 1 < views.length; hour++) {
     const before = Math.min(...views.slice(hour - 2, hour));
     const after = Math.max(...views.slice(hour, hour + 2));
-    if (before >= JUMP_FACTOR * after && before - after >= JUMP_MIN_VIEWS) {
+    if (before >= thresholds.jumpFactor * after && before - after >= thresholds.jumpMinViews) {
       drops.push({ hour, before, after, factor: before / Math.max(after, 1) });
     }
   }
   return drops;
 }
 
-function findBox(rises: Jump[], drops: Jump[]): Box | null {
+function findBox(rises: Jump[], drops: Jump[], thresholds: Thresholds): Box | null {
   for (const rise of rises) {
     const drop = drops.find((candidate) => candidate.hour > rise.hour);
-    if (drop !== undefined && drop.before >= BOX_MIN_RETENTION * rise.after) {
+    if (drop !== undefined && drop.before >= thresholds.boxMinRetention * rise.after) {
       return { rise, drop };
     }
   }
@@ -208,11 +229,11 @@ function decide(
   };
 }
 
-export function classify(views: number[]): Verdict {
-  const flatRun = findFlatRun(views);
-  const rises = findRises(views);
-  const drops = findDrops(views);
-  const box = findBox(rises, drops);
+export function classify(views: number[], thresholds: Thresholds = DEFAULT_THRESHOLDS): Verdict {
+  const flatRun = findFlatRun(views, thresholds);
+  const rises = findRises(views, thresholds);
+  const drops = findDrops(views, thresholds);
+  const box = findBox(rises, drops, thresholds);
   const rise = box?.rise ?? strongest(rises);
   const drop = box?.drop ?? strongest(drops);
 
@@ -224,7 +245,7 @@ export function classify(views: number[]): Verdict {
         detected: flatRun !== null,
         description: flatRun
           ? describeFlatRun(flatRun)
-          : `Nenhuma sequência de ${FLAT_WINDOW_HOURS} horas com números iguais demais.`,
+          : `Nenhuma sequência de ${thresholds.flatWindowHours} horas com números iguais demais.`,
         evidence: flatRun,
       },
       {
@@ -232,7 +253,7 @@ export function classify(views: number[]): Verdict {
         detected: rise !== null,
         description: rise
           ? describeRise(rise)
-          : `Nenhuma hora em que as views subiram ${JUMP_FACTOR}x ou mais e ficaram no alto.`,
+          : `Nenhuma hora em que as views subiram ${thresholds.jumpFactor}x ou mais e ficaram no alto.`,
         evidence: rise,
       },
       {
@@ -240,7 +261,7 @@ export function classify(views: number[]): Verdict {
         detected: drop !== null,
         description: drop
           ? describeDrop(drop)
-          : `Nenhuma hora em que as views caíram ${JUMP_FACTOR}x ou mais e ficaram embaixo.`,
+          : `Nenhuma hora em que as views caíram ${thresholds.jumpFactor}x ou mais e ficaram embaixo.`,
         evidence: drop,
       },
     ],
